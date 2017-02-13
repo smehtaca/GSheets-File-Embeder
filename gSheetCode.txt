@@ -1,0 +1,105 @@
+  // upload document into google spreadsheet
+  // and put link to it into current cell
+
+var properties = PropertiesService.getScriptProperties();
+
+    function onOpen(e) {
+      var ss = SpreadsheetApp.getActiveSpreadsheet()
+      var menuEntries = [];
+      menuEntries.push({name: "File...", functionName: "doGet"});
+      menuEntries.push({name: "Folder ID", functionName: "showPrompt"})
+      menuEntries.push({name: "Image URL", functionName: "showImagePrompt"})
+      ss.addMenu("Attach ...", menuEntries);
+    }
+
+    function showPrompt() {
+      var ui = SpreadsheetApp.getUi(); // Same variations.
+
+      var result = ui.prompt(
+      'Folder Upload ID Dialog',
+      'Please enter the Folder ID:',
+      ui.ButtonSet.OK_CANCEL);
+
+      // Process the user's response.
+      var button = result.getSelectedButton();
+      var text = result.getResponseText();
+      var image = result.getResponseText();
+      if (button == ui.Button.OK) {
+        // User clicked "OK".
+        ui.alert('The folder ID you entered is ' + text + '.');
+      } else if (button == ui.Button.CANCEL) {
+        // User clicked "Cancel".
+        ui.alert('I didn\'t get the folder ID.');
+      } else if (button == ui.Button.CLOSE) {
+        // User clicked X in the title bar.
+        ui.alert('You closed the dialog.');
+      }
+  
+       properties.setProperty('folderID', text);
+       properties.setProperty('imagePreviewLink', image)
+      
+    }
+
+     function showImagePrompt() {
+      var ui = SpreadsheetApp.getUi(); // Same variations.
+
+      var result = ui.prompt(
+      'Image Dialog',
+      'Please enter the Image URL:',
+      ui.ButtonSet.OK_CANCEL);
+
+      // Process the user's response.
+      var button = result.getSelectedButton();
+      var image = result.getResponseText();
+      properties.setProperty('imagePreviewLink', image)
+      
+    }
+
+
+
+
+
+    function doGet(e) {
+      var app = UiApp.createApplication().setTitle("Upload file into Google Drive");
+      SpreadsheetApp.getActiveSpreadsheet().show(app);
+      var form = app.createFormPanel().setId('frm').setEncoding('multipart/form-data');
+      var formContent = app.createVerticalPanel();
+      form.add(formContent);  
+      formContent.add(app.createFileUpload().setName('thefile'));
+
+      // these parameters need to be passed by form
+      // in doPost() these cannot be found out anymore
+      formContent.add(app.createHidden("activeCell", SpreadsheetApp.getActiveRange().getA1Notation()));
+      formContent.add(app.createHidden("activeSheet", SpreadsheetApp.getActiveSheet().getName()));
+      formContent.add(app.createHidden("activeSpreadsheet", SpreadsheetApp.getActiveSpreadsheet().getId()));
+      formContent.add(app.createSubmitButton('Submit'));
+      app.add(form);
+      SpreadsheetApp.getActiveSpreadsheet().show(app);
+      return app;
+    }
+
+    function doPost(e) {
+      var app = UiApp.getActiveApplication();
+      app.createLabel('saving...');
+      var fileBlob = e.parameter.thefile;
+      var doc = DriveApp.getFolderById(properties.getProperty('folderID')).createFile(fileBlob); //Folder ID goes here
+      var label = app.createLabel('file uploaded successfully');
+
+      // write value into current cell
+      if(~properties.getProperty('imagePreviewLink').indexOf("http")) //Checks whether an image preview was added and adds that to cell otherwise adds file name
+      {
+       var value  = 'hyperlink("' + doc.getUrl() + '",' + 'IMAGE("' + properties.getProperty('imagePreviewLink') + '"))'  
+      }
+      else
+      {
+        var value = 'hyperlink("' + doc.getUrl() + '";"' + doc.getName() + '")' 
+      }
+      var activeSpreadsheet = e.parameter.activeSpreadsheet;
+      var activeSheet = e.parameter.activeSheet;
+      var activeCell = e.parameter.activeCell;
+      var label = app.createLabel('file uploaded successfully');
+      app.add(label);
+      SpreadsheetApp.openById(activeSpreadsheet).getSheetByName(activeSheet).getRange(activeCell).setFormula(value);
+      app.close();
+      return app;
+    }
